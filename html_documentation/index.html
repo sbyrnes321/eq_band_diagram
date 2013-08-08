@@ -1,0 +1,97 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+   "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+<title>Documentation for eq_band_diagram</title>
+</head>
+
+<body>
+<h1>Documentation for eq_band_diagram</h1>
+
+<p>Download the software at <a href="http://pypi.python.org/pypi/eq_band_diagram">http://pypi.python.org/pypi/eq_band_diagram</a></p>
+
+<p>Written by Steve Byrnes, 2012 (<a href="http://sjbyrnes.com">http://sjbyrnes.com</a>)</p> 
+
+<p>Software is released under MIT license.</p>
+
+<h3>Overview</h3>
+
+<p>This is a program written in Python / NumPy that calculates equilibrium band structures of planar multilayer semiconductor structures. (It solves the "Poisson-Boltzmann equation" via finite differences.)</p>
+
+<p>"Equilibrium" means "flat fermi level", with V=0 and I=0. This assumption makes the calculation <i>much much simpler</i>. If you look at just the essential algorithm (leaving out my explanations, examples, plots, tests, etc.), it would not even be 50 lines of code.</p>
+
+<p>So this is a relatively simple program for a relatively simple calculation. You can understand how it works, play around with it, etc. But if you're interested in serious, accurate semiconductor simulation, then don't waste your time with this. Get a real TCAD program!</p>
+
+<h3>Examples</h3>
+
+<h4><code>example1()</code>: A p / n junction</h4>
+<img src="example1.png" alt="example1()" width="40%"> 
+
+<h4><code>example2()</code>: A n<sup>+</sup> / n junction</h4>
+<img src="example2.png" alt="example2()" width="40%"> 
+	
+<h4><code>example3()</code>: A bipolar transistor structure</h4>
+<img src="example3.png" alt="example3()" width="40%"> 
+<p>(This one is not expected to be <i>quantitatively</i> accurate, because it involves very heavily doped layers. See below.)</p>
+
+<h4><code>example4()</code>: A depletion region</h4>
+<img src="example4.png" alt="example4()" width="40%"> 
+
+<h4><code>example5()</code>: Comparing to (analytical) depletion approximation for p-n junction</h4>
+<img src="example5.png" alt="example5()" width="40%"> 
+
+<h3>Package setup and installation</h3>
+
+<p>All the code is a single python module. (Written in Python 2.7, but as far as I can tell it should be compatible with Python 3 also. Please email me if you have tried.) It requires numpy and matplotlib. The inner-loop calculation is vectorized in numpy, so the calculation runs quite quickly. (Most plots are generated in ~1 second.) The module requires no setup or compilation, so you can just download it and use it. Or, if you prefer, run</p>
+<pre>pip install eq_band_diagram</pre>
+<p>to automatically download it into the default folder.</p>
+
+<h3>What's in the module?</h3>
+
+<p>The functions are all described with docstrings, so if you read the source code you'll hopefully see what's going on. (There is no other documentation besides this page.)</p>
+
+<p>The top of the module contains <code>calc_core()</code>, which has the main algorithm, along with its helper functions <code>local_charge()</code> (which infers charge from vacuum level) and <code>Evac_minus_EF_from_charge()</code> (which infers vacuum level from charge)</p>
+
+<p>The second section of the module contains a more convenient interface / wrapper to the main algorithm. There is a <code>Material</code> class containing density-of-states, electron affinity, and similar such information. (Two Materials are already defined: <code>GaAs</code> and <code>Si</code>.) There is a <code>Layer</code> class that holds a material, thickness, and doping. <code>calc_layer_stack()</code> takes a list of <code>Layer</code>s and calls the main algorithm, while <code>plot_bands()</code> displays the result.</p>
+
+<p>The third section of the module contains examples: <code>example1()</code>, ..., <code>example5()</code>. The results are plotted above. This section also a special function that makes a plot comparing a numerical solution to the depletion approximation, as shown in <code>example5()</code>.</p>
+
+<p>The final section of the module has a few test scripts.</p>
+
+<h3>Calculation method</h3>
+
+<p>Since this is equilibrium, the fermi level is flat. We set it as the zero of energy. Start with the Poisson equation (i.e. Gauss's law):</p>
+
+<pre>Evac'' = net_charge / epsilon</pre>
+
+<p>(where <code>''</code> is second derivative in space and Evac is the vacuum energy level.)</p>
+
+<p>(Remember Evac = -electric potential + constant. The minus sign is because Evac is related to electron energy, and electrons have negative charge.) Using finite differences:</p>
+
+<pre>(1/2) * dx^2 * Evac''[i] = (Evac[i+1] + Evac[i-1])/2 - Evac[i]</pre>
+
+<p>Therefore, the main equation we solve is:</p>
+
+<pre>Evac[i] = (Evac[i+1] + Evac[i-1])/2 - (1/2) * dx^2 * net_charge[i] / epsilon</pre>
+
+<p><u>Algorithm:</u> The right-hand-side at the previous time-step gives the left-hand-side at the next time step. A little twist, which suppresses a numerical oscillation, is that net_charge[i] is inferred not from the Evac[i] at the last time step, but instead from the (Evac[i+1] + Evac[i-1])/2 at the last time step.</p>
+
+<p><u>Boundary values:</u> The boundary values of Evac (i.e., the values at the start of the leftmost layer and the end of the rightmost layer) are kept fixed at predetermined values. You can specify the boundary values yourself, or you can use the default, wherein values are chosen that make the material is charge-neutral at the boundaries.</p>
+
+<p><u>Seed:</u> Start with the Evac profile wherein everything is charge-neutral, except possibly the first and last points.</p>
+
+<h3>Assumptions</h3>
+
+<p><u>Anderson's rule:</u> The vacuum level is assumed to be continuous, so that band alignments are related to electron affinities. Well, that's how the program is written, but you can always lie about the electron affinity in order to get whatever band alignment you prefer.</p>
+
+<p><u>Nondegenerate electron and hole concentrations:</u> We use formulas like <code>n ~ exp((E<sub>F</sub> - E<sub>C</sub>) / kT)</code>. So band-filling and nonparabolicity is ignored. This will not be accurate if the electron and hole concentrations are too high.</p>
+
+<p><u>100% ionized donors and acceptors:</u> It's assumed that all dopants are ionized. Usually that is a pretty safe assumption for common dopants in common semiconductors at higher-than-cryogenic-temperature.</p>
+
+<p><u>Others:</u> Quantum effects is neglected, etc. etc.</p>
+
+
+</body></html>
+

@@ -1,0 +1,4 @@
+dist/
+eq_band_diagram.egg-info/
+*.zip
+*.pyc
